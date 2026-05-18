@@ -1,0 +1,58 @@
+{
+  "name": "Agent 5 — Data Custodian",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 24 }] }
+      },
+      "id": "node-ttl-cron",
+      "name": "TTL Cron",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://firestore.googleapis.com/v1/projects/{{$env.FIREBASE_PROJECT_ID}}/databases/(default)/documents/leads?pageSize=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-fetch-leads",
+      "name": "Fetch Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst documents = response.documents || [];\nconst now = new Date();\nconst expired = documents.map(doc => ({\n  userId: (doc.fields.user_id || {}).stringValue,\n  deleteAfter: (doc.fields.delete_after || {}).stringValue\n})).filter(l => l.deleteAfter && new Date(l.deleteAfter) < now);\nreturn expired.map(l => ({ json: l }));"
+      },
+      "id": "node-filter-expired",
+      "name": "Filter Expired",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://firestore.googleapis.com/v1/projects/{{$env.FIREBASE_PROJECT_ID}}/databases/(default)/documents/leads/{{$json.userId}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-delete-lead",
+      "name": "Delete Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [950, 400]
+    }
+  ],
+  "connections": {
+    "TTL Cron": { "main": [[{ "node": "Fetch Leads", "type": "main", "index": 0 }]] },
+    "Fetch Leads": { "main": [[{ "node": "Filter Expired", "type": "main", "index": 0 }]] },
+    "Filter Expired": { "main": [[{ "node": "Delete Lead", "type": "main", "index": 0 }]] }
+  }
+}

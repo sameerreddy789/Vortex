@@ -1,0 +1,125 @@
+{
+  "name": "Agent 4 — VAPI Voice Caller",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 24 }] }
+      },
+      "id": "node-vapi-cron",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://firestore.googleapis.com/v1/projects/{{$env.FIREBASE_PROJECT_ID}}/databases/(default)/documents/leads?pageSize=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-fetch-leads",
+      "name": "Fetch Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst documents = response.documents || [];\nconst eligible = documents.map(doc => {\n  const fields = doc.fields || {};\n  return { user_id: fields.user_id?.stringValue, phone: fields.phone?.stringValue, name: fields.name?.stringValue, company: fields.company?.stringValue, intent_score: parseInt(fields.intent_score?.integerValue || 0), call_consent: fields.call_consent?.booleanValue };\n}).filter(l => l.intent_score >= 70 && l.call_consent && l.phone);\nreturn eligible.map(l => ({ json: l }));"
+      },
+      "id": "node-filter",
+      "name": "Filter Eligible",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vapi.ai/call/phone",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.VAPI_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "phoneNumberId", "value": "={{$env.VAPI_PHONE_NUMBER_ID}}" },
+            { "name": "customer", "value": "={ \"number\": $json.phone, \"name\": $json.name }" },
+            { "name": "assistant", "value": "={ \"model\": { \"provider\": \"groq\", \"model\": \"llama3-70b-8192\", \"messages\": [{ \"role\": \"system\", \"content\": \"You are Alex calling \" + $json.name + \"...\" }] }, \"metadata\": { \"user_id\": $json.user_id } }" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-vapi-call",
+      "name": "Fire VAPI Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [950, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi-outcome",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-outcome-webhook",
+      "name": "Outcome Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 600],
+      "webhookId": "vapi-call-outcome"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\nconst metadata = body.metadata || {};\nreturn [{ json: { user_id: metadata.user_id, status: 'COMPLETED', outcome: body.outcome || 'NO_ANSWER' } }];"
+      },
+      "id": "node-parse-outcome",
+      "name": "Parse Outcome",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 600]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://firestore.googleapis.com/v1/projects/{{$env.FIREBASE_PROJECT_ID}}/databases/(default)/documents/leads/{{$json.user_id}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "fields", "value": "={ \"call_status\": { \"stringValue\": $json.outcome } }" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-update-firestore",
+      "name": "Update Firestore",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [700, 600]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Fetch Leads", "type": "main", "index": 0 }]] },
+    "Fetch Leads": { "main": [[{ "node": "Filter Eligible", "type": "main", "index": 0 }]] },
+    "Filter Eligible": { "main": [[{ "node": "Fire VAPI Call", "type": "main", "index": 0 }]] },
+    "Outcome Webhook": { "main": [[{ "node": "Parse Outcome", "type": "main", "index": 0 }]] },
+    "Parse Outcome": { "main": [[{ "node": "Update Firestore", "type": "main", "index": 0 }]] }
+  }
+}
