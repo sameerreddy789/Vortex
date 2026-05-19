@@ -1,0 +1,339 @@
+{
+  "name": "Master Apex Executive Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "apex-master-pipeline",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "27db3178-701b-4a80-a3da-9399e377eaa8",
+      "name": "Webhook Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        96
+      ],
+      "webhookId": "63240038-13d4-4002-b6ae-0c5a0d985e7c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nconst activityAtom = {\n  user_id: body.user_id || 'unknown',\n  name: body.name || 'Unknown User',\n  email: body.email || '',\n  company: body.company || 'Unknown Company',\n  company_size: body.company_size || 'unknown',\n  event_type: body.event || body.event_type || 'unknown',\n  feature: body.feature || 'unknown',\n  session_mins: body.session_duration_mins || 0,\n  teammates_invited: body.teammates_invited || 0,\n  api_calls_today: body.api_calls_today || 0,\n  plan: body.plan || 'free_trial',\n  source: body.source || 'unknown',\n  phone: body.phone || '',\n  call_consent: body.call_consent || false,\n  email_consent: body.email_consent || true,\n  processed_at: new Date().toISOString()\n};\n\nconst ttlDays = 14;\nconst deleteAfter = new Date();\ndeleteAfter.setDate(deleteAfter.getDate() + ttlDays);\nactivityAtom.delete_after = deleteAfter.toISOString();\nactivityAtom.status = 'NEW';\nactivityAtom.email_status = 'NONE';\nactivityAtom.call_status = 'NOT_TRIGGERED';\nactivityAtom.demo_booked = false;\n\nreturn [{ json: activityAtom }];"
+      },
+      "id": "df78dcbe-b24f-493a-9228-7b771b6e747f",
+      "name": "1. Scout: Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://firestore.googleapis.com/v1/projects/vortex-ffc84/databases/(default)/documents/users/{{$json.user_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"user_id\": {\n      \"stringValue\": \"{{$json.user_id}}\"\n    },\n    \"name\": {\n      \"stringValue\": \"{{$json.name}}\"\n    },\n    \"email\": {\n      \"stringValue\": \"{{$json.email}}\"\n    },\n    \"company\": {\n      \"stringValue\": \"{{$json.company}}\"\n    },\n    \"company_size\": {\n      \"stringValue\": \"{{$json.company_size}}\"\n    },\n    \"event_type\": {\n      \"stringValue\": \"{{$json.event_type}}\"\n    },\n    \"feature\": {\n      \"stringValue\": \"{{$json.feature}}\"\n    },\n    \"session_mins\": {\n      \"integerValue\": \"{{$json.session_mins}}\"\n    },\n    \"teammates_invited\": {\n      \"integerValue\": \"{{$json.teammates_invited}}\"\n    },\n    \"api_calls_today\": {\n      \"integerValue\": \"{{$json.api_calls_today}}\"\n    },\n    \"plan\": {\n      \"stringValue\": \"{{$json.plan}}\"\n    },\n    \"source\": {\n      \"stringValue\": \"{{$json.source}}\"\n    },\n    \"phone\": {\n      \"stringValue\": \"{{$json.phone}}\"\n    },\n    \"call_consent\": {\n      \"booleanValue\": {{$json.call_consent}}\n    },\n    \"email_consent\": {\n      \"booleanValue\": {{$json.email_consent}}\n    },\n    \"processed_at\": {\n      \"stringValue\": \"{{$json.processed_at}}\"\n    },\n    \"delete_after\": {\n      \"stringValue\": \"{{$now.plus({ days: 30 }).toISO()}}\"\n    },\n    \"status\": {\n      \"stringValue\": \"{{$json.status}}\"\n    },\n    \"email_status\": {\n      \"stringValue\": \"{{$json.email_status}}\"\n    },\n    \"call_status\": {\n      \"stringValue\": \"{{$json.call_status}}\"\n    },\n    \"demo_booked\": {\n      \"booleanValue\": {{$json.demo_booked}}\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "c19aa9ce-eb31-49fa-a2fe-34b144a6fd73",
+      "name": "2. Save User Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -160,
+        96
+      ],
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"ok\",\n  \"message\": \"Master Pipeline: Processing Started\",\n  \"user_id\": \"{{$json.fields.user_id.stringValue}}\"\n}",
+        "options": {}
+      },
+      "id": "2d8fd6de-6f27-4f67-8146-be39511ff86f",
+      "name": "Respond Early",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        64,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\":\"llama-3.3-70b-versatile\",\n  \"messages\":[\n    {\n      \"role\":\"system\",\n      \"content\":\"You are an elite SaaS sales intent scoring AI. Return ONLY valid JSON in this format: {\\\"tier\\\":\\\"POWER_USER\\\",\\\"intent_score\\\":92,\\\"reasoning\\\":\\\"...\\\"}\"\n    },\n    {\n      \"role\":\"user\",\n      \"content\":\"Lead Name: {{$node['1. Scout: Normalize'].json.name}}\\nCompany: {{$node['1. Scout: Normalize'].json.company}}\\nCompany Size: {{$node['1. Scout: Normalize'].json.company_size}}\\nFeature: {{$node['1. Scout: Normalize'].json.feature}}\\nSession Duration: {{$node['1. Scout: Normalize'].json.session_mins}} minutes\\nTeammates Invited: {{$node['1. Scout: Normalize'].json.teammates_invited}}\\nAPI Calls Today: {{$node['1. Scout: Normalize'].json.api_calls_today}}/100\\nEvent Type: {{$node['1. Scout: Normalize'].json.event_type}}\"\n    }\n  ],\n  \"temperature\":0.3\n}",
+        "options": {}
+      },
+      "id": "3baa39f9-755e-4dd5-94e3-9941534b6d6d",
+      "name": "3. Architect: AI Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        64,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.choices?.[0]?.message?.content || \"{}\";\n\nconst cleaned = raw\n  .replace(/```json/g, \"\")\n  .replace(/```/g, \"\")\n  .trim();\n\nlet parsed = {};\n\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = {\n    intent_score: 50,\n    tier: \"EXPLORER\"\n  };\n}\n\nreturn [{\n  json: {\n    intent_score: Number(parsed.intent_score || 50),\n    tier: parsed.tier || \"EXPLORER\"\n  }\n}];"
+      },
+      "id": "19b36c48-395a-40f5-a877-ebc4c426b1b4",
+      "name": "4. Parse Intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an elite SaaS sales closer AI. Write highly personalized upgrade emails. Return ONLY valid JSON in this format: {\\\"subject\\\":\\\"...\\\",\\\"body\\\":\\\"...\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Lead Name: {{$node['1. Scout: Normalize'].json.name}}\\nCompany: {{$node['1. Scout: Normalize'].json.company}}\\nCompany Size: {{$node['1. Scout: Normalize'].json.company_size}}\\nFeature: {{$node['1. Scout: Normalize'].json.feature}}\\nSession Duration: {{$node['1. Scout: Normalize'].json.session_mins}} minutes\\nTeammates Invited: {{$node['1. Scout: Normalize'].json.teammates_invited}}\\nAPI Calls Today: {{$node['1. Scout: Normalize'].json.api_calls_today}}/100\\nCurrent Plan: {{$node['1. Scout: Normalize'].json.plan}}\\nEvent Type: {{$node['1. Scout: Normalize'].json.event_type}}\\nGoal: Convince this lead to upgrade immediately.\"\n    }\n  ],\n  \"temperature\": 0.7\n}",
+        "options": {}
+      },
+      "id": "686f1f69-5334-4e74-8db0-c8efb93b1015",
+      "name": "5. Scriptwriter: Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        512,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.choices?.[0]?.message?.content || \"{}\";\n\nconst cleaned = raw\n  .replace(/```json/g, \"\")\n  .replace(/```/g, \"\")\n  .trim();\n\nlet parsed = {};\n\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = {\n    subject: \"Follow up\",\n    body: \"Hi there\"\n  };\n}\n\nreturn [{\n  json: {\n    email_subject: parsed.subject || \"Follow up\",\n    email_body: parsed.body || \"Hi there\"\n  }\n}];"
+      },
+      "id": "96fed6fe-7e0c-4534-a397-7b32699a43dd",
+      "name": "6. Parse Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    user_id: $node[\"1. Scout: Normalize\"].json.user_id,\n\n    name: $node[\"1. Scout: Normalize\"].json.name,\n\n    email: $node[\"1. Scout: Normalize\"].json.email,\n\n    status:\n      $node[\"4. Parse Intent\"].json.intent_score >= 80\n        ? \"HOT_LEAD\"\n        : \"WARM_LEAD\",\n\n    intent_score: $node[\"4. Parse Intent\"].json.intent_score,\n\n    tier: $node[\"4. Parse Intent\"].json.tier,\n\n    email_subject: $node[\"6. Parse Email\"].json.email_subject,\n\n    email_body: $node[\"6. Parse Email\"].json.email_body,\n\n    debate_log: [\n      \"Agent 1 → Event captured\",\n      `Agent 2 → Classified: ${$node[\"4. Parse Intent\"].json.tier} (Score: ${$node[\"4. Parse Intent\"].json.intent_score})`,\n      \"Agent 3 → Email drafted\",\n      `Agent 7 → Decision: ${\n        $node[\"4. Parse Intent\"].json.intent_score >= 80\n          ? \"HOT LEAD - Slack + Email\"\n          : \"WARM LEAD - Email only\"\n      }`\n    ]\n  }\n}];"
+      },
+      "id": "f70d6e83-176b-4d5d-9093-ad13fa073c2e",
+      "name": "7. Router: Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://firestore.googleapis.com/v1/projects/vortex-ffc84/databases/(default)/documents/leads",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"user_id\": {\n      \"stringValue\": \"{{$json.user_id}}\"\n    },\n\n    \"name\": {\n      \"stringValue\": \"{{$json.name}}\"\n    },\n\n    \"email\": {\n      \"stringValue\": \"{{$json.email}}\"\n    },\n\n    \"intent_score\": {\n      \"integerValue\": \"{{$json.intent_score}}\"\n    },\n\n    \"tier\": {\n      \"stringValue\": \"{{$json.tier}}\"\n    },\n\n    \"status\": {\n      \"stringValue\": \"{{$json.status}}\"\n    },\n\n    \"email_subject\": {\n      \"stringValue\": \"{{$json.email_subject}}\"\n    },\n\n    \"email_body\": {\n      \"stringValue\": \"{{$json.email_body}}\"\n    },\n\n    \"debate_log\": {\n      \"stringValue\": \"{{$json.debate_log.join(' | ')}}\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "13914040-7e9c-42f1-b2b5-29a1e255032f",
+      "name": "8. Save Lead Firestore",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1184,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "channel": "C0B41Q0FC0P",
+        "text": "=🔥 *Vortex HOT LEAD*\n\n📊 Intent Score: {{$json.intent_score}}/100\n🎯 Tier: {{$json.tier}}\n📌 Status: {{$json.status}}\n\n✉️ Subject:\n{{$json.email_subject}}\n\n📝 Draft:\n{{$json.email_body}}\n\n🧠 Debate Log:\n{{$json.debate_log ? $json.debate_log.join(' | ') : ''}}",
+        "otherOptions": {},
+        "attachments": []
+      },
+      "id": "87d88914-2e98-4d25-a3a0-1cc53302e6b7",
+      "name": "9. Slack Alert (Hot Only)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        1184,
+        304
+      ],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "CFkr8EZmdrlHwZdG",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Intake": {
+      "main": [
+        [
+          {
+            "node": "1. Scout: Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Scout: Normalize": {
+      "main": [
+        [
+          {
+            "node": "2. Save User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Save User Profile": {
+      "main": [
+        [
+          {
+            "node": "Respond Early",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "3. Architect: AI Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Architect: AI Score": {
+      "main": [
+        [
+          {
+            "node": "4. Parse Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Parse Intent": {
+      "main": [
+        [
+          {
+            "node": "5. Scriptwriter: Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Scriptwriter: Draft": {
+      "main": [
+        [
+          {
+            "node": "6. Parse Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Parse Email": {
+      "main": [
+        [
+          {
+            "node": "7. Router: Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Router: Decision": {
+      "main": [
+        [
+          {
+            "node": "8. Save Lead Firestore",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "9. Slack Alert (Hot Only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Save Lead Firestore": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "603e9a36-29c0-4dc0-870f-16ad8c2869c6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e027d14cd79e33145b449e9e6cdee0e20549530e747f358b20b73c1af07bf845"
+  },
+  "id": "B0Z4Ox8ZSrsMwdZB",
+  "tags": []
+}

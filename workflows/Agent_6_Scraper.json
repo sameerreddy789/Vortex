@@ -13,7 +13,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const PRODUCT = 'ApexIntel';\n// We use a single combined search to avoid overwriting the 'latest' document twice\nconst query = `https://www.reddit.com/r/SaaS/search/?q=${PRODUCT}&sort=new`;\nreturn [{ json: { jina_url: `https://r.jina.ai/${query}`, platform: 'reddit' } }];"
+        "jsCode": "const PRODUCT = 'Vortex';\n// We use a single combined search to avoid overwriting the 'latest' document twice\nconst query = `https://www.reddit.com/r/SaaS/search/?q=${PRODUCT}&sort=new`;\nreturn [{ json: { jina_url: `https://r.jina.ai/${query}`, platform: 'reddit' } }];"
       },
       "id": "node-build-urls",
       "name": "Build Jina URL",

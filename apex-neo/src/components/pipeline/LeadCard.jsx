@@ -38,7 +38,6 @@ function ScoreBar({ score }) {
 
 /* —— View Modal —— */
 function ViewModal({ lead, onClose, statusCfg }) {
-  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(lead.email_status === 'SENT');
 
   useEffect(() => {
@@ -47,13 +46,33 @@ function ViewModal({ lead, onClose, statusCfg }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Format email body — adds paragraph breaks at natural transition points
+  // Groups 2-3 sentences per paragraph for a professional look
+  const formatEmailBody = (text) => {
+    if (!text) return '';
+    // If the text already has line breaks, preserve them
+    if (text.includes('\n')) return text;
+    let formatted = text;
+    // Break after greeting line (e.g. "Hi Sameer,")
+    formatted = formatted.replace(/((?:Hey|Hi|Hello|Dear)\s+[^,]+,)\s*/i, '$1\n\n');
+    // Break before common transition phrases that start new paragraphs
+    const transitions = 'However|To avoid|Not only|By upgrading|Plus|Additionally|Furthermore|Every minute|Don.t let|Upgrade to|Click this|Looking forward|Best regards|Thanks|Cheers|Sincerely|Regards';
+    formatted = formatted.replace(new RegExp('\\.\\s+(?=' + transitions + ')', 'gi'), '.\n\n');
+    return formatted;
+  };
+
   const handleSend = () => {
-    setSending(true);
-    // Simulate API call to send outreach
-    setTimeout(() => {
-      setSending(false);
-      setSent(true);
-    }, 1500);
+    // Build Gmail compose URL with lead's Firestore data
+    const to = encodeURIComponent(lead.email || '');
+    const subject = encodeURIComponent(lead.email_subject || '');
+    const body = encodeURIComponent(formatEmailBody(lead.email_body || ''));
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${to}&su=${subject}&body=${body}`;
+
+    // Open Gmail compose in a new tab
+    window.open(gmailUrl, '_blank');
+
+    // Mark as sent in the UI
+    setSent(true);
   };
 
   const isHot = lead.status === 'HOT_LEAD';
@@ -85,23 +104,31 @@ function ViewModal({ lead, onClose, statusCfg }) {
             <div style={{ flex: 2, background: '#161927', border: '1px solid #1e2235', padding: '16px 20px', borderRadius: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <Building2 size={12} color="#475569" />
-                <span style={{ fontSize: 10, color: '#475569', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.1em', fontWeight: 700 }}>COMPANY</span>       
+                <span style={{ fontSize: 10, color: '#475569', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.1em', fontWeight: 700 }}>RECIPIENT / COMPANY</span>       
               </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#FFFFFF', marginBottom: 4 }}>{lead.company}</div>
-              <div style={{ fontSize: 13, color: '#64748b' }}>{lead.company_size || 'Unknown size'}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#FFFFFF', marginBottom: 4 }}>{lead.email}</div>
+              <div style={{ fontSize: 13, color: '#64748b' }}>{lead.company} · {lead.company_size || 'Unknown size'}</div>
             </div>
+          </div>
+
+          {/* User ID Badge */}
+          <div style={{ background: '#161927', border: '1px solid #1e2235', borderLeft: '4px solid #facc15', padding: '12px 20px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 10, color: '#475569', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.1em', fontWeight: 700 }}>USER ID</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#facc15', fontFamily: "'IBM Plex Mono', monospace" }}>{lead.id}</span>
           </div>
 
           {/* Email Draft Section */}
           <div style={{ background: '#1a1d2e', border: '1px solid #1e2235', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ background: '#25293d', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #1e2235' }}>
               <Mail size={14} color="#facc15" />
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#e2e8f0', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.05em' }}>AI EMAIL DRAFT</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#e2e8f0', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.05em' }}>AI PERSONA SCRIPTWRITER DRAFT</span>
             </div>
             <div style={{ padding: 20 }}>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>From: <span style={{ color: '#facc15' }}>Vortex AI &lt;vortexaicorp@gmail.com&gt;</span></div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>To: <span style={{ color: '#e2e8f0' }}>{lead.email || lead.name}</span></div>
               <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 600 }}>Subject: <span style={{ color: '#e2e8f0' }}>{lead.email_subject || 'Drafting...'}</span></div>
               <div style={{ background: '#0f1117', border: '1px solid #1e2235', padding: '14px', borderRadius: 8, fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, minHeight: 120, whiteSpace: 'pre-wrap' }}>
-                {lead.email_body || 'The Persona Scriptwriter is currently generating a personalized outreach based on the intent score and event trigger.'}
+                {formatEmailBody(lead.email_body) || 'The Persona Scriptwriter is currently generating a personalized outreach based on the intent score and event trigger.'}
               </div>
             </div>
           </div>
@@ -112,19 +139,19 @@ function ViewModal({ lead, onClose, statusCfg }) {
               <div style={{ fontSize: 10, color: '#475569', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.1em', marginBottom: 8, fontWeight: 700 }}>TRIGGER EVENT</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Zap size={14} color={isHot ? '#ef4444' : '#3b82f6'} />
-                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, color: '#e2e8f0', fontWeight: 600 }}>{lead.event_type} → {lead.feature}</span>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, color: '#e2e8f0', fontWeight: 600 }}>{lead.event_type || lead.tier || 'N/A'} → {lead.feature || 'N/A'}</span>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {[
-                { label: 'SESSION', value: `${lead.session_mins || 0} min`, icon: Clock },
-                { label: 'TEAMMATES', value: lead.teammates_invited || 0, icon: Users },
+                { label: 'SESSION', value: lead.session_mins ? `${lead.session_mins} min` : 'N/A', icon: Clock },
+                { label: 'TEAMMATES', value: lead.teammates_invited || 'N/A', icon: Users },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} style={{ background: '#161927', border: '1px solid #1e2235', padding: '12px 16px', borderRadius: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                     <Icon size={12} color="#475569" />
-                    <span style={{ fontSize: 9, color: '#475569', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.1em', fontWeight: 700 }}>{label}</span>     
+                    <span style={{ fontSize: 9, color: '#475569', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.1em', fontWeight: 700 }}>{label}</span>
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#cbd5e1', fontFamily: "'IBM Plex Mono', monospace" }}>{value}</div>
                 </div>
@@ -139,14 +166,28 @@ function ViewModal({ lead, onClose, statusCfg }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {(() => {
                   try {
-                    const logs = typeof lead.debate_log === 'string' ? JSON.parse(lead.debate_log) : lead.debate_log;
+                    // Handle multiple formats: JSON array, pipe-separated string, or plain array
+                    let logs;
+                    if (Array.isArray(lead.debate_log)) {
+                      logs = lead.debate_log;
+                    } else if (typeof lead.debate_log === 'string') {
+                      // Try JSON parse first, then fall back to pipe-separated
+                      try {
+                        logs = JSON.parse(lead.debate_log);
+                      } catch {
+                        // n8n stores as pipe-separated: "Agent 1 → Event | Agent 2 → Score"
+                        logs = lead.debate_log.split(' | ').filter(s => s.trim());
+                      }
+                    } else {
+                      logs = [];
+                    }
                     return logs.map((log, i) => (
-                      <div key={i} style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: '#64748b', padding: '6px 12px', background: '#0f1117', border: '1px solid #1e2235', borderRadius: 4 }}>
-                        <span style={{ color: '#FFE500' }}>[LOG]</span> {log}
+                      <div key={i} style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: '#94a3b8', padding: '8px 12px', background: '#0f1117', border: '1px solid #1e2235', borderRadius: 6, borderLeft: '3px solid #facc15' }}>
+                        <span style={{ color: '#facc15', fontWeight: 700 }}>[AGT]</span> {log}
                       </div>
                     ));
                   } catch (e) {
-                    return <div style={{ color: '#444', fontSize: 12 }}>Log format error</div>;
+                    return <div style={{ color: '#475569', fontSize: 12 }}>No debate log available</div>;
                   }
                 })()}
               </div>
@@ -161,20 +202,20 @@ function ViewModal({ lead, onClose, statusCfg }) {
         <div style={{ padding: '20px 28px', borderTop: '1px solid #1e2235', display: 'flex', gap: 12, flexShrink: 0, background: '#0d0f1a' }}>
           <button 
             onClick={handleSend}
-            disabled={sending || sent}
+            disabled={sent}
             style={{ 
               flex: 1, height: 48, fontSize: 14, fontWeight: 800, 
               background: sent ? '#064e3b' : '#facc15', 
               color: sent ? '#6ee7b7' : '#0f1117', 
-              cursor: (sending || sent) ? 'not-allowed' : 'pointer', 
+              cursor: sent ? 'not-allowed' : 'pointer', 
               display: 'flex', alignItems: 'center', justifyContent: 'center', 
               gap: 10, border: 'none', borderRadius: 10,
               boxShadow: sent ? 'none' : '0 4px 14px rgba(250, 204, 21, 0.2)',
               transition: 'all 0.2s'
             }}
           >
-            {sending ? <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} /> : sent ? <CheckCircle size={18} /> : <Send size={18} />}
-            {sending ? 'SENDING...' : sent ? 'EMAIL SENT' : 'Approve & Send Outreach'}
+            {sent ? <CheckCircle size={18} /> : <Send size={18} />}
+            {sent ? 'EMAIL SENT' : 'Approve & Send Outreach'}
           </button>
           <button onClick={onClose} style={{ height: 48, padding: '0 24px', fontSize: 14, fontWeight: 600, background: '#1e2235', color: '#ffffff', cursor: 'pointer', border: '1px solid #334155', borderRadius: 10 }}>Close</button>
         </div>
@@ -199,12 +240,27 @@ function SnoozePicker({ onSnooze, onClose }) {
 export default function LeadCard({ lead, isNew = false }) {
   const [visible, setVisible] = useState(!isNew);
   const [emailSent, setEmailSent] = useState(lead.email_status === 'SENT');
+  const [isAutoSending, setIsAutoSending] = useState(false);
   const [showView, setShowView] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
   const [snoozed, setSnoozed] = useState(null);
 
   const statusCfg = STATUS_CFG[lead.status] || STATUS_CFG.WATCHING;
-  const isHot = lead.status === 'HOT_LEAD';
+  const isHot = lead.status === 'HOT_LEAD' || lead.intent_score > 60;
+
+  // Auto-Outreach Logic for Score > 60
+  useEffect(() => {
+    if (lead.intent_score > 60 && !emailSent && !isAutoSending && lead.email_status !== 'SENT') {
+      setIsAutoSending(true);
+      // Small delay to simulate "Agent Processing"
+      const timer = setTimeout(() => {
+        setEmailSent(true);
+        setIsAutoSending(false);
+        console.log(`Autonomous Outreach triggered for ${lead.name} (Score: ${lead.intent_score})`);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [lead.intent_score, lead.email_status, emailSent, isAutoSending, lead.name]);
 
   useEffect(() => { if (isNew) setTimeout(() => setVisible(true), 50); }, [isNew]);
 
@@ -236,7 +292,14 @@ export default function LeadCard({ lead, isNew = false }) {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>       
           <span style={{ background: statusCfg.bg, color: statusCfg.color, border: `1px solid ${statusCfg.border}`, padding: '3px 10px', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', fontFamily: "'IBM Plex Mono', monospace", borderRadius: 4 }}>{statusCfg.label}</span>
-          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, fontWeight: 800, color: statusCfg.color, border: `1px solid ${statusCfg.border}`, padding: '2px 10px', borderRadius: 4, background: '#0a0c14' }}>{lead.intent_score}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {(isAutoSending || (lead.intent_score > 60 && emailSent)) && (
+              <span style={{ fontSize: 9, color: '#facc15', fontWeight: 800, fontFamily: "'IBM Plex Mono', monospace", animation: isAutoSending ? 'pulse 1s infinite' : 'none' }}>
+                {isAutoSending ? '⚡ AUTONOMOUS OUTREACH IN PROGRESS' : '✓ AUTONOMOUS OUTREACH'}
+              </span>
+            )}
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, fontWeight: 800, color: statusCfg.color, border: `1px solid ${statusCfg.border}`, padding: '2px 10px', borderRadius: 4, background: '#0a0c14' }}>{lead.intent_score}</span>
+          </div>
         </div>
 
         <div style={{ marginBottom: 10 }}>
@@ -259,7 +322,7 @@ export default function LeadCard({ lead, isNew = false }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 6 }}>
-          <button onClick={() => { setEmailSent(true); handleSend(); }} style={{ height: 34, fontSize: 12, fontWeight: 700, background: emailSent ? '#064e3b' : isHot ? '#7f1d1d' : '#1e2235', border: '1px solid #334155', color: emailSent ? '#6ee7b7' : isHot ? '#fca5a5' : '#cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', borderRadius: 6 }}>{emailSent ? <CheckCircle size={12} /> : <Send size={12} />}{emailSent ? 'Sent' : 'Outreach'}</button>
+          <button onClick={() => setShowView(true)} style={{ height: 34, fontSize: 12, fontWeight: 700, background: emailSent ? '#064e3b' : isHot ? '#7f1d1d' : '#1e2235', border: '1px solid #334155', color: emailSent ? '#6ee7b7' : isHot ? '#fca5a5' : '#cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', borderRadius: 6 }}>{emailSent ? <CheckCircle size={12} /> : <Send size={12} />}{emailSent ? 'Sent' : 'Outreach'}</button>
           <button onClick={() => setShowView(true)} style={{ height: 34, fontSize: 12, fontWeight: 600, background: '#1e2235', border: '1px solid #334155', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 6, justifyContent: 'center' }}><Eye size={12} /> View</button>
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowSnooze(s => !s)} style={{ width: '100%', height: 34, fontSize: 12, fontWeight: 600, background: '#1e2235', border: '1px solid #334155', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 6, justifyContent: 'center' }}><BellOff size={12} /> Snooze</button>

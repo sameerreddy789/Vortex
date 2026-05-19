@@ -6,7 +6,7 @@ import { db } from '../lib/firebase';
 const INITIAL_LEADS = [];
 
 const INITIAL_EVENTS = [
-  { id: 'start', agent: 0, agentName: 'System', timestamp: new Date().toISOString(), action: 'ApexIntel Core Online', detail: 'Ready for event intake' },
+  { id: 'start', agent: 0, agentName: 'System', timestamp: new Date().toISOString(), action: 'Vortex Core Online', detail: 'Ready for event intake' },
 ];
 
 const INITIAL_AGENTS = [
