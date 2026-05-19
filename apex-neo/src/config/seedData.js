@@ -1,4 +1,4 @@
-// Seed leads used in the Agent Activity tab debate viewer
+// Seed leads used in the Agent Activity tab debate viewer and Live Pipeline demo
 export const SEED_LEADS = [
   {
     id: 'usr_4821',
@@ -57,6 +57,80 @@ I'd love to walk you through it in a 15-min call — happy to make it worth your
     signals: ['LOW_INTENT'],
     email_draft: null,
   },
+  {
+    id: 'usr_5521',
+    name: 'Sarah Chen',
+    company: 'Nexus Flow',
+    company_size: '201-500',
+    intent_score: 88,
+    status: 'HOT_LEAD',
+    event_type: 'feature_blocked',
+    feature: 'Advanced Analytics',
+    session_mins: 35,
+    teammates_invited: 5,
+    signals: ['HIGH_ADOPTION', 'ENTERPRISE_SIGNAL'],
+    email_draft: {
+      subject: "Unlocking Advanced Analytics for Nexus Flow",
+      body: "Hi Sarah, Noticed your team is trying to access the analytics suite...",
+      sales_contact_note: "Enterprise lead. Focus on scale and multi-user permissions."
+    }
+  },
+  {
+    id: 'usr_1102',
+    name: 'Marcus Thorne',
+    company: 'Vanguard Systems',
+    company_size: '51-200',
+    intent_score: 95,
+    status: 'CONVERTED',
+    event_type: 'plan_upgrade',
+    feature: 'Enterprise Plan',
+    session_mins: 15,
+    teammates_invited: 12,
+    signals: ['CLOSED_WON'],
+    email_draft: null
+  },
+  {
+    id: 'usr_7734',
+    name: 'Elena Rodriguez',
+    company: 'Solaris Health',
+    company_size: '11-50',
+    intent_score: 42,
+    status: 'WATCHING',
+    event_type: 'pricing_view',
+    feature: 'Pricing Page',
+    session_mins: 12,
+    teammates_invited: 0,
+    signals: ['PRICE_SENSITIVE'],
+    email_draft: null
+  },
+  {
+    id: 'usr_3345',
+    name: 'David Kim',
+    company: 'K-Tech Solutions',
+    company_size: '1-10',
+    intent_score: 61,
+    status: 'WARM_LEAD',
+    event_type: 'api_key_created',
+    feature: 'API Management',
+    session_mins: 28,
+    teammates_invited: 1,
+    signals: ['ACTIVATION_MILESTONE'],
+    email_draft: null
+  },
+  {
+    id: 'usr_8890',
+    name: 'Anita Desai',
+    company: 'Global Logistics',
+    company_size: '500+',
+    intent_score: 99,
+    status: 'CONVERTED',
+    event_type: 'contract_signed',
+    feature: 'Custom Integration',
+    session_mins: 0,
+    teammates_invited: 45,
+    signals: ['PARTNERSHIP'],
+    email_draft: null
+  }
 ];
 
 // Agent debate log for Rahul Sharma — shown in the DebateTerminal

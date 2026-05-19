@@ -1,13 +1,25 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { SEED_LEADS } from '../config/seedData';
+
+const IS_DEMO = import.meta.env.VITE_USE_DEMO_DATA === 'true';
 
 // --- INITIAL MOCK DATA ---
-const INITIAL_LEADS = [];
+const INITIAL_LEADS = IS_DEMO ? SEED_LEADS : [];
 
 const INITIAL_EVENTS = [
-  { id: 'start', agent: 0, agentName: 'System', timestamp: new Date().toISOString(), action: 'Vortex Core Online', detail: 'Ready for event intake' },
+  { id: 'start', agent: 0, agentName: 'System', timestamp: new Date().toISOString(), action: 'Apex Core Online', detail: 'Ready for event intake' },
 ];
+
+const INITIAL_INTEL = {
+  sentiment_score: 82,
+  overall_sentiment: 'POSITIVE',
+  top_complaints: ['API Documentation clarity', 'Dashboard loading states'],
+  top_praise: ['Lightning fast outreach', 'Highly accurate lead scoring', 'Clean UI'],
+  feature_requests: ['Mobile app', 'Salesforce integration', 'Bulk lead import'],
+  summary: "Market sentiment is strongly positive. Users are impressed by the automation speed, though enterprise users are requesting deeper CRM integrations."
+};
 
 const INITIAL_AGENTS = [
   { id: 1, name: "Behavioral Scout", status: "ACTIVE", lastAction: "Waiting...", actionsToday: 0 },
@@ -54,14 +66,7 @@ export function useActivityFeed() {
 }
 
 export function useProductIntel() {
-  const [intel, setIntel] = useState({
-    sentiment_score: 50,
-    overall_sentiment: 'NEUTRAL',
-    top_complaints: [],
-    top_praise: [],
-    feature_requests: [],
-    summary: "No market data analyzed yet. Agent 6 is ready to scrape."
-  });
+  const [intel, setIntel] = useState(INITIAL_INTEL);
 
   useEffect(() => {
     return onSnapshot(collection(db, 'product_intelligence'), (snapshot) => {
