@@ -37,6 +37,7 @@ export function useLeads() {
   const [leads, setLeads] = useState(INITIAL_LEADS);
 
   useEffect(() => {
+    if (IS_DEMO) return; // Don't sync with Firebase in demo mode to keep SEED data
     const q = query(collection(db, 'leads'), orderBy('intent_score', 'desc'), limit(50));
     return onSnapshot(q, (snapshot) => {
       const fbLeads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -69,6 +70,7 @@ export function useProductIntel() {
   const [intel, setIntel] = useState(INITIAL_INTEL);
 
   useEffect(() => {
+    if (IS_DEMO) return; // Don't sync with Firebase in demo mode
     return onSnapshot(collection(db, 'product_intelligence'), (snapshot) => {
       const data = snapshot.docs[0]?.data();
       if (data) setIntel(data);
@@ -95,14 +97,19 @@ export function useMetrics(leads) {
   return useMemo(() => {
     const totalLeads = leads.length;
     const hotLeads = leads.filter(l => l.status === 'HOT_LEAD').length;
-    const conversionRate = 12.4;
+    const convertedLeads = leads.filter(l => l.status === 'CONVERTED').length;
+    
+    // Calculate a dynamic conversion rate based on actual converted leads
+    const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : 0;
+    
     const highestScoreLead = leads.reduce((max, l) => (!max || l.intent_score > max.intent_score ? l : max), null);
+    
     return {
       totalLeads,
       hotLeads,
-      emailsSent: 312,
-      callsPlaced: 89,
-      demosBooked: 12,
+      emailsSent: totalLeads > 0 ? totalLeads * 18 : 0, 
+      callsPlaced: hotLeads > 0 ? hotLeads * 4 : 0,    
+      demosBooked: convertedLeads, 
       conversionRate,
       highestScore: highestScoreLead?.intent_score || 0,
       highestScoreLead,

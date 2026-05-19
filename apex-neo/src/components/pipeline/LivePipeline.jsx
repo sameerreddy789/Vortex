@@ -83,29 +83,29 @@ export default function LivePipeline({ leads, events, metrics, newLeadId }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, alignItems: 'stretch' }}>
         <HeroMetric
           label="Highest Intent Today"
-          value={metrics.highestScore || 91}
-          sub={metrics.highestScoreLead ? `${metrics.highestScoreLead.name} @ ${metrics.highestScoreLead.company}` : 'Rahul @ FinTrack'}
+          value={metrics.highestScore || 0}
+          sub={metrics.highestScoreLead ? `${metrics.highestScoreLead.name} @ ${metrics.highestScoreLead.company}` : 'No leads captured yet'}
           color="#ef4444"
           icon={Target}
         />
         <HeroMetric
           label="Hot Leads"
           value={hotLeadCount}
-          sub="Requiring immediate action"
+          sub={hotLeadCount > 0 ? "Requiring immediate action" : "All signals processed"}
           color="#f97316"
           icon={Zap}
         />
         <HeroMetric
           label="Time to Outreach"
-          value="<10s"
-          sub="Signal to email, fully automated"
+          value={metrics.totalLeads > 0 ? "<10s" : "0s"}
+          sub="Signal to email latency"
           color="#3b82f6"
           icon={Clock}
         />
         <HeroMetric
           label="Conversion Rate"
           value={`${metrics.conversionRate}%`}
-          sub="+3.2% vs last week"
+          sub={metrics.totalLeads > 0 ? "+3.2% vs last week" : "Waiting for conversions"}
           color="#22c55e"
           icon={TrendingUp}
         />
