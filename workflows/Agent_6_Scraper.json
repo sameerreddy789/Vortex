@@ -1,5 +1,5 @@
 {
-  "name": "Agent 6 — Social Intelligence Scraper",
+  "name": "Agent 6 — Social Intelligence Scraper (Stealth)",
   "nodes": [
     {
       "parameters": {
@@ -9,29 +9,39 @@
       "name": "Scraper Cron",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [200, 400]
+      "position": [100, 400]
     },
     {
       "parameters": {
-        "jsCode": "const PRODUCT = 'Vortex';\n// We use a single combined search to avoid overwriting the 'latest' document twice\nconst query = `https://www.reddit.com/r/SaaS/search/?q=${PRODUCT}&sort=new`;\nreturn [{ json: { jina_url: `https://r.jina.ai/${query}`, platform: 'reddit' } }];"
+        "jsCode": "const PRODUCT = 'Vortex';\nreturn [\n  { json: { url: `http://localhost:8000/scrape/reddit?q=${PRODUCT}`, platform: 'reddit' } },\n  { json: { url: `http://localhost:8000/scrape/twitter?q=${PRODUCT}`, platform: 'twitter' } },\n  { json: { url: `http://localhost:8000/scrape/linkedin?q=${PRODUCT}`, platform: 'linkedin' } }\n];"
       },
       "id": "node-build-urls",
-      "name": "Build Jina URL",
+      "name": "Build Scrape URLs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [450, 400]
+      "position": [300, 400]
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "={{$json.jina_url}}",
-        "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Accept", "value": "text/plain" }, { "name": "Authorization", "value": "Bearer jina_328bb824d97f4fdcbc0a4a5fa1c6a812H8-H1bG0r1hykdIQwuzz7WWe9OeX" }] }
+        "url": "={{$json.url}}",
+        "sendHeaders": false,
+        "options": {}
       },
-      "id": "node-jina-fetch",
-      "name": "Jina Fetch",
+      "id": "node-local-fetch",
+      "name": "Stealth Fetch",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet combinedText = '';\nitems.forEach(item => {\n  combinedText += `\\n--- PLATFORM: ${item.json.platform} ---\\n${item.json.data}\\n`;\n});\nreturn [{ json: { body: combinedText } }];"
+      },
+      "id": "node-aggregate",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [700, 400]
     },
     {
@@ -48,7 +58,7 @@
             { "name": "model", "value": "llama3-70b-8192" },
             { 
               "name": "messages", 
-              "value": "=[{\"role\":\"system\",\"content\":\"You are a SaaS market analyst. Analyze the provided text and return ONLY valid JSON matching this schema: {\\\"sentiment_score\\\": number, \\\"sources\\\": {\\\"reddit\\\": number, \\\"youtube\\\": number}, \\\"top_complaints\\\": [{\\\"issue\\\": string, \\\"example_quote\\\": string}], \\\"top_praise\\\": [{\\\"point\\\": string, \\\"example_quote\\\": string}], \\\"feature_requests\\\": [{\\\"feature\\\": string, \\\"count\\\": number}], \\\"summary\\\": string}\"},{\"role\":\"user\",\"content\":$json.body}]" 
+              "value": "=[{\"role\":\"system\",\"content\":\"You are a SaaS market analyst. Analyze the provided text from multiple platforms (Reddit, Twitter, LinkedIn) and return ONLY valid JSON matching this schema: {\\\"sentiment_score\\\": number, \\\"sources\\\": {\\\"reddit\\\": number, \\\"twitter\\\": number, \\\"linkedin\\\": number}, \\\"top_complaints\\\": [{\\\"issue\\\": string, \\\"example_quote\\\": string}], \\\"top_praise\\\": [{\\\"point\\\": string, \\\"example_quote\\\": string}], \\\"feature_requests\\\": [{\\\"feature\\\": string, \\\"count\\\": number}], \\\"summary\\\": string}\"},{\"role\":\"user\",\"content\":$json.body}]" 
             }
           ]
         }
@@ -57,7 +67,7 @@
       "name": "Groq Sentiment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [950, 400]
+      "position": [900, 400]
     },
     {
       "parameters": {
@@ -67,7 +77,7 @@
       "name": "Format for Firestore",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1200, 400]
+      "position": [1100, 400]
     },
     {
       "parameters": {
@@ -84,13 +94,14 @@
       "name": "Save to Firestore",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1450, 400]
+      "position": [1300, 400]
     }
   ],
   "connections": {
-    "Scraper Cron": { "main": [[{ "node": "Build Jina URL", "type": "main", "index": 0 }]] },
-    "Build Jina URL": { "main": [[{ "node": "Jina Fetch", "type": "main", "index": 0 }]] },
-    "Jina Fetch": { "main": [[{ "node": "Groq Sentiment", "type": "main", "index": 0 }]] },
+    "Scraper Cron": { "main": [[{ "node": "Build Scrape URLs", "type": "main", "index": 0 }]] },
+    "Build Scrape URLs": { "main": [[{ "node": "Stealth Fetch", "type": "main", "index": 0 }]] },
+    "Stealth Fetch": { "main": [[{ "node": "Aggregate Results", "type": "main", "index": 0 }]] },
+    "Aggregate Results": { "main": [[{ "node": "Groq Sentiment", "type": "main", "index": 0 }]] },
     "Groq Sentiment": { "main": [[{ "node": "Format for Firestore", "type": "main", "index": 0 }]] },
     "Format for Firestore": { "main": [[{ "node": "Save to Firestore", "type": "main", "index": 0 }]] }
   }

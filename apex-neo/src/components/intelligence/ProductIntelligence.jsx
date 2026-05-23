@@ -88,11 +88,14 @@ export default function ProductIntelligence({ intel }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 24, fontWeight: 800, color: '#ffffff' }}>Overall Market Sentiment</div>
           <div style={{ fontSize: 14, color: '#64748b', marginTop: 6, fontWeight: 500 }}>
-            Based on {(intel.sources?.reddit || 4) + (intel.sources?.youtube || 1)} posts across Reddit & YouTube
+            Based on {Object.values(intel.sources || {}).reduce((s, c) => s + c, 0) || 5} posts across {Object.keys(intel.sources || {reddit:4, youtube:1}).map(k => k.charAt(0).toUpperCase() + k.slice(1)).join(' & ')}
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-            <span style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: '#2d3148', color: '#cbd5e1' }}>Reddit · {intel.sources?.reddit || 4}</span>
-            <span style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: '#2d3148', color: '#cbd5e1' }}>YouTube · {intel.sources?.youtube || 1}</span>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+            {Object.entries(intel.sources || {reddit: 4, youtube: 1}).map(([platform, count]) => (
+              <span key={platform} style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: '#2d3148', color: '#cbd5e1', textTransform: 'capitalize' }}>
+                {platform} · {count}
+              </span>
+            ))}
           </div>
         </div>
 
