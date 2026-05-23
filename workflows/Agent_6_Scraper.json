@@ -3,106 +3,204 @@
   "nodes": [
     {
       "parameters": {
-        "rule": { "interval": [{ "field": "hours", "hoursInterval": 6 }] }
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
       },
-      "id": "node-scraper-cron",
+      "id": "101ea288-a99d-4d0e-b6ce-cb26c5f33b08",
       "name": "Scraper Cron",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [100, 400]
+      "position": [
+        0,
+        0
+      ]
     },
     {
       "parameters": {
         "jsCode": "const PRODUCT = 'Vortex';\nreturn [\n  { json: { url: `http://localhost:8000/scrape/reddit?q=${PRODUCT}`, platform: 'reddit' } },\n  { json: { url: `http://localhost:8000/scrape/twitter?q=${PRODUCT}`, platform: 'twitter' } },\n  { json: { url: `http://localhost:8000/scrape/linkedin?q=${PRODUCT}`, platform: 'linkedin' } }\n];"
       },
-      "id": "node-build-urls",
+      "id": "b19083f0-c604-4f75-87fe-315011ecae12",
       "name": "Build Scrape URLs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [300, 400]
+      "position": [
+        200,
+        0
+      ]
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "={{$json.url}}",
-        "sendHeaders": false,
         "options": {}
       },
-      "id": "node-local-fetch",
+      "id": "086c309b-bdb3-48fc-816d-c7bc544a7587",
       "name": "Stealth Fetch",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 400]
+      "position": [
+        400,
+        0
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nlet combinedText = '';\nitems.forEach(item => {\n  combinedText += `\\n--- PLATFORM: ${item.json.platform} ---\\n${item.json.data}\\n`;\n});\nreturn [{ json: { body: combinedText } }];"
+        "jsCode": "const items = $input.all();\nlet combinedText = '';\nlet sourceCounts = { reddit: 0, twitter: 0, linkedin: 0 };\n\nitems.forEach(item => {\n  combinedText += `\\n--- PLATFORM: ${item.json.platform} ---\\n${item.json.data}\\n`;\n  // Basic heuristic: check if data contains content to count as a source\n  if (item.json.data && item.json.data.length > 50) {\n    sourceCounts[item.json.platform] = (sourceCounts[item.json.platform] || 0) + 1;\n  }\n});\n\nreturn [{ json: { body: combinedText, sourceCounts } }];"
       },
-      "id": "node-aggregate",
+      "id": "aggregator-node-id",
       "name": "Aggregate Results",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [700, 400]
+      "position": [
+        600,
+        0
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://api.groq.com/openai/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{$env.GROQ_API_KEY}}" }] },
-        "sendBody": true,
-        "bodyParameters": {
+        "headerParameters": {
           "parameters": [
-            { "name": "model", "value": "llama3-70b-8192" },
-            { 
-              "name": "messages", 
-              "value": "=[{\"role\":\"system\",\"content\":\"You are a SaaS market analyst. Analyze the provided text from multiple platforms (Reddit, Twitter, LinkedIn) and return ONLY valid JSON matching this schema: {\\\"sentiment_score\\\": number, \\\"sources\\\": {\\\"reddit\\\": number, \\\"twitter\\\": number, \\\"linkedin\\\": number}, \\\"top_complaints\\\": [{\\\"issue\\\": string, \\\"example_quote\\\": string}], \\\"top_praise\\\": [{\\\"point\\\": string, \\\"example_quote\\\": string}], \\\"feature_requests\\\": [{\\\"feature\\\": string, \\\"count\\\": number}], \\\"summary\\\": string}\"},{\"role\":\"user\",\"content\":$json.body}]" 
+            {
+              "name": "Authorization",
+              "value": "=Bearer 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"
             }
           ]
-        }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a SaaS market analyst. Analyze the provided text from multiple platforms and return ONLY valid JSON matching this exact schema: {\\\"sentiment_score\\\": number, \\\"sources\\\": {\\\"reddit\\\": number, \\\"twitter\\\": number, \\\"linkedin\\\": number}, \\\"top_complaints\\\": [{\\\"issue\\\": string, \\\"example_quote\\\": string}], \\\"top_praise\\\": [{\\\"point\\\": string, \\\"example_quote\\\": string}], \\\"feature_requests\\\": [{\\\"feature\\\": string, \\\"count\\\": number}], \\\"summary\\\": string}. Use the source counts provided: \" + JSON.stringify($json.sourceCounts)\n    },\n    {\n      \"role\": \"user\",\n      \"content\": $json.body\n    }\n  ],\n  \"temperature\": 0.2\n}\n}}",
+        "options": {}
       },
-      "id": "node-sentiment",
+      "id": "d0074b57-36a3-4fee-9fcd-a9ffc5fa1a75",
       "name": "Groq Sentiment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [900, 400]
+      "position": [
+        800,
+        0
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const groqResponse = $input.first().json;\nconst content = groqResponse.choices[0].message.content;\nlet intel;\ntry {\n  intel = JSON.parse(content.replace(/```json|```/g, '').trim());\n} catch(e) {\n  intel = { summary: 'Error parsing AI response', sentiment_score: 50 };\n}\n\n// Helper to format for Firestore REST API\nconst toFs = (val) => {\n  if (typeof val === 'string') return { stringValue: val };\n  if (typeof val === 'number') return { doubleValue: val };\n  if (Array.isArray(val)) return { arrayValue: { values: val.map(v => ({ mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,v]) => [k, toFs(v)])) } })) } };\n  if (typeof val === 'object') return { mapValue: { fields: Object.fromEntries(Object.entries(val).map(([k,v]) => [k, toFs(v)])) } };\n  return { stringValue: String(val) };\n};\n\nconst fields = Object.fromEntries(Object.entries(intel).map(([k, v]) => [k, toFs(v)]));\nreturn [{ json: { fields } }];"
+        "jsCode": "const groqResponse = $input.first().json;\nconst content = groqResponse.choices[0].message.content;\nlet intel;\ntry {\n  intel = JSON.parse(content.replace(/```json|```/g, '').trim());\n} catch(e) {\n  intel = { summary: 'Error parsing AI response', sentiment_score: 50, sources: { reddit: 1 } };\n}\n\n// Helper to format for Firestore REST API\nconst toFs = (val) => {\n  if (typeof val === 'string') return { stringValue: val };\n  if (typeof val === 'number') return { doubleValue: val };\n  if (Array.isArray(val)) return { arrayValue: { values: val.map(v => ({ mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,v]) => [k, toFs(v)])) } })) } };\n  if (typeof val === 'object') return { mapValue: { fields: Object.fromEntries(Object.entries(val).map(([k,v]) => [k, toFs(v)])) } };\n  return { stringValue: String(val) };\n};\n\nconst fields = Object.fromEntries(Object.entries(intel).map(([k, v]) => [k, toFs(v)]));\nreturn [{ json: { fields } }];"
       },
-      "id": "node-format-fs",
+      "id": "81e9666b-4668-469e-8305-7b46d82ce22b",
       "name": "Format for Firestore",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1100, 400]
+      "position": [
+        1000,
+        0
+      ]
     },
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://firestore.googleapis.com/v1/projects/{{$env.FIREBASE_PROJECT_ID}}/databases/(default)/documents/product_intelligence/latest",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "=https://firestore.googleapis.com/v1/projects/vortex-ffc84/databases/(default)/documents/product_intelligence/latest",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }] },
+        "headerParameters": {
+          "parameters": [
+            { \"name\": \"Content-Type\", \"value\": \"application/json\" }
+          ]
+        },
         "sendBody": true,
-        "bodyParameters": { "parameters": [{ "name": "fields", "value": "={{$json.fields}}" }] }
+        "bodyParameters": {
+          "parameters": [
+            { \"name\": \"fields\", \"value\": \"={{$json.fields}}\" }
+          ]
+        },
+        "options": {}
       },
-      "id": "node-save-intel",
+      "id": "93576478-27a0-49c1-85e5-48dd2bf4bb58",
       "name": "Save to Firestore",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1300, 400]
+      "position": [
+        1200,
+        0
+      ]
     }
   ],
+  "pinData": {},
   "connections": {
-    "Scraper Cron": { "main": [[{ "node": "Build Scrape URLs", "type": "main", "index": 0 }]] },
-    "Build Scrape URLs": { "main": [[{ "node": "Stealth Fetch", "type": "main", "index": 0 }]] },
-    "Stealth Fetch": { "main": [[{ "node": "Aggregate Results", "type": "main", "index": 0 }]] },
-    "Aggregate Results": { "main": [[{ "node": "Groq Sentiment", "type": "main", "index": 0 }]] },
-    "Groq Sentiment": { "main": [[{ "node": "Format for Firestore", "type": "main", "index": 0 }]] },
-    "Format for Firestore": { "main": [[{ "node": "Save to Firestore", "type": "main", "index": 0 }]] }
+    "Scraper Cron": {
+      "main": [
+        [
+          {
+            "node": "Build Scrape URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scrape URLs": {
+      "main": [
+        [
+          {
+            "node": "Stealth Fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stealth Fetch": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Groq Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Format for Firestore",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Firestore": {
+      "main": [
+        [
+          {
+            "node": "Save to Firestore",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
   }
 }

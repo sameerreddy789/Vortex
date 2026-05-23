@@ -1,0 +1,193 @@
+{
+  "name": "Agent 6 — Social Intelligence Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "101ea288-a99d-4d0e-b6ce-cb26c5f33b08",
+      "name": "Scraper Cron",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const PRODUCT = 'ApexIntel';\n// We use a single combined search to avoid overwriting the 'latest' document twice\nconst query = `https://www.reddit.com/r/SaaS/search/?q=${PRODUCT}&sort=new`;\nreturn [{ json: { jina_url: `https://r.jina.ai/${query}`, platform: 'reddit' } }];"
+      },
+      "id": "b19083f0-c604-4f75-87fe-315011ecae12",
+      "name": "Build Jina URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.jina_url}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "text/plain"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "086c309b-bdb3-48fc-816d-c7bc544a7587",
+      "name": "Jina Fetch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        512,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer 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"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this text sentiment and return only one word: POSITIVE, NEGATIVE, or NEUTRAL.\\n\\n\" + $json.data\n    }\n  ],\n  \"temperature\": 0.2\n}\n}}",
+        "options": {}
+      },
+      "id": "d0074b57-36a3-4fee-9fcd-a9ffc5fa1a75",
+      "name": "Groq Sentiment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        752,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const groqResponse = $input.first().json;\nconst content = groqResponse.choices[0].message.content;\nlet intel;\ntry {\n  intel = JSON.parse(content.replace(/```json|```/g, '').trim());\n} catch(e) {\n  intel = { summary: 'Error parsing AI response', sentiment_score: 50 };\n}\n\n// Helper to format for Firestore REST API\nconst toFs = (val) => {\n  if (typeof val === 'string') return { stringValue: val };\n  if (typeof val === 'number') return { doubleValue: val };\n  if (Array.isArray(val)) return { arrayValue: { values: val.map(v => ({ mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k,v]) => [k, toFs(v)])) } })) } };\n  if (typeof val === 'object') return { mapValue: { fields: Object.fromEntries(Object.entries(val).map(([k,v]) => [k, toFs(v)])) } };\n  return { stringValue: String(val) };\n};\n\nconst fields = Object.fromEntries(Object.entries(intel).map(([k, v]) => [k, toFs(v)]));\nreturn [{ json: { fields } }];"
+      },
+      "id": "81e9666b-4668-469e-8305-7b46d82ce22b",
+      "name": "Format for Firestore",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://firestore.googleapis.com/v1/projects/vortex-ffc84/databases/(default)/documents/product_intelligence/latest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "options": {}
+      },
+      "id": "93576478-27a0-49c1-85e5-48dd2bf4bb58",
+      "name": "Save to Firestore",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1264,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Scraper Cron": {
+      "main": [
+        [
+          {
+            "node": "Build Jina URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Jina URL": {
+      "main": [
+        [
+          {
+            "node": "Jina Fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jina Fetch": {
+      "main": [
+        [
+          {
+            "node": "Groq Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Format for Firestore",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Firestore": {
+      "main": [
+        [
+          {
+            "node": "Save to Firestore",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "60270f22-6c0b-4d0a-87ad-0f25490a5b9e",
+  "meta": {
+    "instanceId": "e027d14cd79e33145b449e9e6cdee0e20549530e747f358b20b73c1af07bf845"
+  },
+  "id": "MkMbWtzKxG0teex3",
+  "tags": []
+}

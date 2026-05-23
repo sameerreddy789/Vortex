@@ -7,9 +7,12 @@ import AgentActivity from './components/agents/AgentActivity';
 import ProductIntelligence from './components/intelligence/ProductIntelligence';
 import Settings from './components/shared/Settings';
 import DemoButton from './components/shared/DemoButton';
+import AuthPage from './components/auth/AuthPage';
+import { useAuth } from './lib/auth';
 import { useLeads, useActivityFeed, useProductIntel, useAgentStatus, useMetrics } from './hooks';
 
 export default function App() {
+  const { user, userData, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('Live Pipeline');
   const [newLeadId, setNewLeadId] = useState(null);
 
@@ -29,6 +32,14 @@ export default function App() {
       setTimeout(() => setNewLeadId(null), 5000);
     }
   }, [prependEvent, setProcessing, addLead]);
+
+  if (loading) return (
+    <div style={{ height: '100vh', background: '#0C0C0C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ color: '#FFE500', fontFamily: "'IBM Plex Mono', monospace", fontSize: 14 }}>// BOOTING VORTEX CORE...</div>
+    </div>
+  );
+
+  if (!user) return <AuthPage />;
 
   const renderContent = () => {
     switch (activeTab) {

@@ -8,13 +8,15 @@ const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || '';
  * Fires a demo event payload to the configured n8n webhook.
  * Resolves silently even if the webhook is not configured or unreachable.
  */
-export async function triggerDemoEvent() {
+export async function triggerDemoEvent(userConfig = {}) {
+  const webhookUrl = userConfig.VITE_N8N_WEBHOOK_URL || import.meta.env.VITE_N8N_WEBHOOK_URL || '';
+  
   console.log('[n8n] Attempting to trigger event...');
-  console.log('[n8n] URL:', N8N_WEBHOOK_URL);
+  console.log('[n8n] URL:', webhookUrl);
 
-  if (!N8N_WEBHOOK_URL || N8N_WEBHOOK_URL.includes('PASTE_YOUR')) {
-    console.error('[n8n] ERROR: No valid webhook URL configured in .env!');
-    return;
+  if (!webhookUrl || webhookUrl.includes('PASTE_YOUR')) {
+    console.error('[n8n] ERROR: No valid webhook URL configured!');
+    throw new Error('No webhook URL found. Please set it in Settings.');
   }
 
   const payload = {
@@ -38,7 +40,7 @@ export async function triggerDemoEvent() {
   const response = await fetch('/api/proxy-webhook', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: N8N_WEBHOOK_URL, payload }),
+    body: JSON.stringify({ url: webhookUrl, payload }),
   });
     console.log('[n8n] Response status:', response.status);
 

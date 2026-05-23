@@ -1,5 +1,6 @@
-import { Zap, Clock, Users, Flame, Mail, Phone, Calendar, TrendingUp } from 'lucide-react';
+import { Zap, Clock, Users, Flame, Mail, Phone, Calendar, TrendingUp, Coins } from 'lucide-react';
 import { useClock, useCountUp } from '../../hooks';
+import { useAuth } from '../../lib/auth';
 
 const METRIC_CONFIG = [
   { key: 'totalLeads',     label: 'Leads',     icon: Users,      color: '#facc15' },
@@ -28,6 +29,8 @@ function MiniMetric({ label, value, icon: Icon, color, suffix = '', index }) {
 
 export default function TopNav({ metrics }) {
   const time = useClock();
+  const { userData } = useAuth();
+  const credits = userData?.credits ?? 0;
 
   return (
     <header style={{
@@ -63,6 +66,17 @@ export default function TopNav({ metrics }) {
 
       {/* Right section */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
+        {/* Credits Badge */}
+        <div style={{ 
+          display: 'flex', alignItems: 'center', gap: 8, 
+          background: '#1A1D2D', border: '1px solid #2A2F45', 
+          padding: '4px 12px', borderRadius: 4, height: 28
+        }}>
+          <Coins size={12} color="#facc15" />
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: '#FFF', fontWeight: 700 }}>{credits}</span>
+          <span style={{ fontSize: 9, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Credits</span>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse 2s infinite' }} />
           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: '#22c55e', fontWeight: 700 }}>ACTIVE</span>

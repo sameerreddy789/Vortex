@@ -1,27 +1,25 @@
 import { useState, useEffect } from 'react';
 import { Save, Check, Terminal, Database, Mic, GitBranch, Key, RefreshCw } from 'lucide-react';
+import { useAuth } from '../../lib/auth';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
-function ConfigField({ label, value, placeholder, type = 'text', mono = false, hint, envKey }) {
+function ConfigField({ label, value, placeholder, type = 'text', mono = false, hint, configKey, onSave }) {
   const [val, setVal] = useState(value || '');
   const [saved, setSaved] = useState(false);
 
-  // Sync internal state if the external value changes
   useEffect(() => {
     if (value !== undefined) setVal(value);
   }, [value]);
 
   const save = async () => { 
-    if (!envKey) return;
+    if (!configKey) return;
     try {
-      await fetch('/api/save-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: envKey, value: val })
-      });
+      await onSave(configKey, val);
       setSaved(true); 
       setTimeout(() => setSaved(false), 2000); 
     } catch (e) {
-      console.error('Failed to save to file', e);
+      console.error('Failed to save config', e);
     }
   };
 
@@ -79,26 +77,27 @@ function Section({ title, icon: Icon, color, children }) {
 }
 
 export default function Settings() {
+  const { user, userData } = useAuth();
   const [config, setConfig] = useState({});
-  const [loading, setLoading] = useState(true);
-
-  const fetchConfig = async () => {
-    try {
-      const res = await fetch('/api/get-config');
-      const data = await res.json();
-      setConfig(data);
-    } catch (e) {
-      console.error('Failed to fetch config', e);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    fetchConfig();
-  }, []);
+    if (userData?.config) {
+      setConfig(userData.config);
+    }
+  }, [userData]);
 
-  if (loading) return <div style={{ color: '#444', fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", padding: 40 }}>// LOADING CONFIGURATION...</div>;
+  const handleSave = async (key, value) => {
+    if (!user) return;
+    const newConfig = { ...config, [key]: value };
+    setConfig(newConfig);
+    
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { config: newConfig });
+    } catch (e) {
+      console.error('Failed to sync settings to cloud', e);
+    }
+  };
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -107,40 +106,37 @@ export default function Settings() {
           <div style={{ fontSize: 9, color: '#333', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.15em', marginBottom: 6 }}>// CONFIGURATION</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: '#F0F0F0', marginBottom: 6 }}>System Settings</h2>
           <p style={{ fontSize: 12, color: '#444', lineHeight: 1.6 }}>
-            Changes are saved directly to your <code style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#FFE500', background: '#FFE50011', padding: '1px 4px' }}>.env</code> file.
+            Your configuration is encrypted and synced to your <span style={{ color: '#FFE500' }}>Cloud Profile</span>.
           </p>
         </div>
-        <button onClick={fetchConfig} style={{ background: 'transparent', border: '1px solid #2A2A2A', color: '#666', padding: '6px 12px', fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 4, cursor: 'pointer' }}>
-          <RefreshCw size={12} /> REFRESH
-        </button>
       </div>
 
       <Section title="n8n Workflow Engine" icon={GitBranch} color="#FFE500">
-        <ConfigField envKey="VITE_N8N_BASE_URL" value={config.VITE_N8N_BASE_URL} label="N8N_CLOUD_URL" placeholder="https://your-instance.app.n8n.cloud" mono hint="Your n8n cloud or self-hosted base URL" />
-        <ConfigField envKey="VITE_N8N_WEBHOOK_URL" value={config.VITE_N8N_WEBHOOK_URL} label="VORTEX_WEBHOOK_URL" placeholder="https://your-instance.app.n8n.cloud/webhook/vortex-event" mono hint="POST endpoint to trigger the scout agent" />
-        <ConfigField envKey="VITE_N8N_API_KEY" value={config.VITE_N8N_API_KEY} label="N8N_API_KEY" type="password" placeholder="••••••••••••••••" mono hint="Optional: for workflow management API calls" />
+        <ConfigField configKey="VITE_N8N_BASE_URL" value={config.VITE_N8N_BASE_URL} onSave={handleSave} label="N8N_CLOUD_URL" placeholder="https://your-instance.app.n8n.cloud" mono hint="Your n8n cloud or self-hosted base URL" />
+        <ConfigField configKey="VITE_N8N_WEBHOOK_URL" value={config.VITE_N8N_WEBHOOK_URL} onSave={handleSave} label="VORTEX_WEBHOOK_URL" placeholder="https://your-instance.app.n8n.cloud/webhook/vortex-event" mono hint="POST endpoint to trigger the scout agent" />
+        <ConfigField configKey="VITE_N8N_API_KEY" value={config.VITE_N8N_API_KEY} onSave={handleSave} label="N8N_API_KEY" type="password" placeholder="••••••••••••••••" mono hint="Optional: for workflow management API calls" />
       </Section>
 
       <Section title="Firebase / Firestore" icon={Database} color="#3D7EFF">
-        <ConfigField envKey="VITE_FIREBASE_PROJECT_ID" value={config.VITE_FIREBASE_PROJECT_ID} label="FIREBASE_PROJECT_ID" placeholder="your-project-id" mono />
-        <ConfigField envKey="VITE_FIREBASE_API_KEY" value={config.VITE_FIREBASE_API_KEY} label="FIREBASE_API_KEY" type="password" placeholder="••••••••••••••••" mono />
-        <ConfigField envKey="VITE_FIREBASE_AUTH_DOMAIN" value={config.VITE_FIREBASE_AUTH_DOMAIN} label="FIREBASE_AUTH_DOMAIN" placeholder="your-project.firebaseapp.com" mono />
+        <ConfigField configKey="VITE_FIREBASE_PROJECT_ID" value={config.VITE_FIREBASE_PROJECT_ID} onSave={handleSave} label="FIREBASE_PROJECT_ID" placeholder="your-project-id" mono />
+        <ConfigField configKey="VITE_FIREBASE_API_KEY" value={config.VITE_FIREBASE_API_KEY} onSave={handleSave} label="FIREBASE_API_KEY" type="password" placeholder="••••••••••••••••" mono />
+        <ConfigField configKey="VITE_FIREBASE_AUTH_DOMAIN" value={config.VITE_FIREBASE_AUTH_DOMAIN} onSave={handleSave} label="FIREBASE_AUTH_DOMAIN" placeholder="your-project.firebaseapp.com" mono />
       </Section>
 
       <Section title="Groq AI" icon={Terminal} color="#9B5FFF">
-        <ConfigField envKey="VITE_GROQ_API_KEY" value={config.VITE_GROQ_API_KEY} label="GROQ_API_KEY" type="password" placeholder="gsk_••••••••••••••••" mono hint="Used by Agents 2, 3, and 6 via n8n" />
-        <ConfigField envKey="VITE_MODEL" value={config.VITE_MODEL} label="MODEL" placeholder="llama3-70b-8192" mono hint="Default model for intent + email generation" />
+        <ConfigField configKey="VITE_GROQ_API_KEY" value={config.VITE_GROQ_API_KEY} onSave={handleSave} label="GROQ_API_KEY" type="password" placeholder="gsk_••••••••••••••••" mono hint="Used by Agents 2, 3, and 6 via n8n" />
+        <ConfigField configKey="VITE_MODEL" value={config.VITE_MODEL} onSave={handleSave} label="MODEL" placeholder="llama3-70b-8192" mono hint="Default model for intent + email generation" />
       </Section>
 
       <Section title="VAPI Voice Caller" icon={Mic} color="#00D4FF">
-        <ConfigField envKey="VITE_VAPI_API_KEY" value={config.VITE_VAPI_API_KEY} label="VAPI_API_KEY" type="password" placeholder="••••••••••••••••" mono />
-        <ConfigField envKey="VITE_VAPI_PHONE_ID" value={config.VITE_VAPI_PHONE_ID} label="VAPI_PHONE_NUMBER_ID" placeholder="phone-number-id" mono hint="Source number for Agent 4 calls" />
-        <ConfigField envKey="VITE_VAPI_ASSISTANT_ID" value={config.VITE_VAPI_ASSISTANT_ID} label="VAPI_ASSISTANT_ID" placeholder="assistant-id" mono />
+        <ConfigField configKey="VITE_VAPI_API_KEY" value={config.VITE_VAPI_API_KEY} onSave={handleSave} label="VAPI_API_KEY" type="password" placeholder="••••••••••••••••" mono />
+        <ConfigField configKey="VITE_VAPI_PHONE_ID" value={config.VITE_VAPI_PHONE_ID} onSave={handleSave} label="VAPI_PHONE_NUMBER_ID" placeholder="phone-number-id" mono hint="Source number for Agent 4 calls" />
+        <ConfigField configKey="VITE_VAPI_ASSISTANT_ID" value={config.VITE_VAPI_ASSISTANT_ID} onSave={handleSave} label="VAPI_ASSISTANT_ID" placeholder="assistant-id" mono />
       </Section>
 
       <Section title="Slack Alerts" icon={Key} color="#FF6B2B">
-        <ConfigField envKey="VITE_SLACK_TOKEN" value={config.VITE_SLACK_TOKEN} label="SLACK_BOT_TOKEN" type="password" placeholder="xoxb-••••••••••••••" mono />
-        <ConfigField envKey="VITE_SLACK_CHANNEL" value={config.VITE_SLACK_CHANNEL} label="SLACK_CHANNEL_ID" placeholder="#sales" mono hint="Agent 7 fires alerts here for HOT_LEAD decisions" />
+        <ConfigField configKey="VITE_SLACK_TOKEN" value={config.VITE_SLACK_TOKEN} onSave={handleSave} label="SLACK_BOT_TOKEN" type="password" placeholder="xoxb-••••••••••••••" mono />
+        <ConfigField configKey="VITE_SLACK_CHANNEL" value={config.VITE_SLACK_CHANNEL} onSave={handleSave} label="SLACK_CHANNEL_ID" placeholder="#sales" mono hint="Agent 7 fires alerts here for HOT_LEAD decisions" />
       </Section>
     </div>
   );

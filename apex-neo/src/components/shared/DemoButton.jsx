@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Play, Loader, CheckCircle } from 'lucide-react';
 import { triggerDemoEvent } from '../../config/n8n';
+import { useAuth } from '../../lib/auth';
+import { doc, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 const DEMO_LEAD = {
   id: `demo_${Date.now()}`,
@@ -29,32 +32,53 @@ const DEMO_LEAD = {
 };
 
 export default function DemoButton({ onDemoStep }) {
+  const { user, userData } = useAuth();
   const [state, setState] = useState('idle');
   const [toast, setToast] = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
   const runDemo = async () => {
     if (state !== 'idle') return;
+
+    // 1. Credit Check
+    const credits = userData?.credits ?? 0;
+    if (credits <= 0) {
+      alert("❌ INSUFFICIENT CREDITS. Please top up your profile.");
+      return;
+    }
+
     setState('running');
     const start = Date.now();
 
-    // TRIGGER THE ACTUAL n8n WEBHOOK
-    triggerDemoEvent().catch(err => console.error('[n8n] Failed to fire event:', err));
+    try {
+      // 2. TRIGGER THE ACTUAL n8n WEBHOOK
+      await triggerDemoEvent(userData?.config || {});
 
-    const steps = [
-      { delay: 200,  fn: () => onDemoStep('feed', { id: `d${Date.now()}`, agent: 1, agentName: 'Behavioral Scout', timestamp: new Date().toISOString(), action: 'api_limit_hit captured — vediums@gmail.com', detail: 'Data Export API · Session 120min' }) },
-      { delay: 800,  fn: () => onDemoStep('agent', { id: 1 }) },
-      { delay: 1200, fn: () => onDemoStep('feed', { id: `d${Date.now()}`, agent: 2, agentName: 'Intent Architect', timestamp: new Date().toISOString(), action: 'Classifying intent via Groq llama3-70b...', detail: 'Processing behavioral signals' }) },
-      { delay: 2000, fn: () => { onDemoStep('agent', { id: 2 }); onDemoStep('feed', { id: `d${Date.now()}`, agent: 2, agentName: 'Intent Architect', timestamp: new Date().toISOString(), action: 'POWER_USER · Score 92/100 · HIGH urgency', detail: 'ABT technologies · USAGE_LIMIT pain' }); }},     
-      { delay: 2500, fn: () => { onDemoStep('agent', { id: 3 }); onDemoStep('feed', { id: `d${Date.now()}`, agent: 3, agentName: 'Persona Scriptwriter', timestamp: new Date().toISOString(), action: 'Drafting personalized email via Groq...', detail: 'Referencing api_limit_hit context' }); }},    
-      { delay: 3200, fn: () => onDemoStep('feed', { id: `d${Date.now()}`, agent: 3, agentName: 'Persona Scriptwriter', timestamp: new Date().toISOString(), action: 'Email drafted for Sameer Reddy', detail: "You hit the Data Export limit..." }) },
-      { delay: 3800, fn: () => onDemoStep('agent', { id: 7 }) },
-      { delay: 4200, fn: () => onDemoStep('feed', { id: `d${Date.now()}`, agent: 7, agentName: 'Exec Router', timestamp: new Date().toISOString(), action: 'HOT_LEAD decision: Slack + Email queued', detail: 'Score 92 · Slack fired to #sales' }) },
-      { delay: 4500, fn: () => onDemoStep('lead', { ...DEMO_LEAD, id: `demo_${Date.now()}` }) },
-      { delay: 5500, fn: () => { setElapsed(Math.round((Date.now() - start) / 100) / 10); setState('done'); setToast(true); setTimeout(() => { setToast(false); setTimeout(() => setState('idle'), 500); }, 3500); }},
-    ];
+      // 3. Deduct Credit (Atomic)
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        credits: increment(-1)
+      });
 
-    steps.forEach(({ delay, fn }) => setTimeout(fn, delay));
+      const steps = [
+        { delay: 200,  fn: () => onDemoStep('feed', { id: `d${Date.now()}`, agent: 1, agentName: 'Behavioral Scout', timestamp: new Date().toISOString(), action: 'api_limit_hit captured — vediums@gmail.com', detail: 'Data Export API · Session 120min' }) },
+        { delay: 800,  fn: () => onDemoStep('agent', { id: 1 }) },
+        { delay: 1200, fn: () => onDemoStep('feed', { id: `d${Date.now()}`, agent: 2, agentName: 'Intent Architect', timestamp: new Date().toISOString(), action: 'Classifying intent via Groq llama3-70b...', detail: 'Processing behavioral signals' }) },
+        { delay: 2000, fn: () => { onDemoStep('agent', { id: 2 }); onDemoStep('feed', { id: `d${Date.now()}`, agent: 2, agentName: 'Intent Architect', timestamp: new Date().toISOString(), action: 'POWER_USER · Score 92/100 · HIGH urgency', detail: 'ABT technologies · USAGE_LIMIT pain' }); }},     
+        { delay: 2500, fn: () => { onDemoStep('agent', { id: 3 }); onDemoStep('feed', { id: `d${Date.now()}`, agent: 3, agentName: 'Persona Scriptwriter', timestamp: new Date().toISOString(), action: 'Drafting personalized email via Groq...', detail: 'Referencing api_limit_hit context' }); }},    
+        { delay: 3200, fn: () => onDemoStep('feed', { id: `d${Date.now()}`, agent: 3, agentName: 'Persona Scriptwriter', timestamp: new Date().toISOString(), action: 'Email drafted for Sameer Reddy', detail: "You hit the Data Export limit..." }) },
+        { delay: 3800, fn: () => onDemoStep('agent', { id: 7 }) },
+        { delay: 4200, fn: () => onDemoStep('feed', { id: `d${Date.now()}`, agent: 7, agentName: 'Exec Router', timestamp: new Date().toISOString(), action: 'HOT_LEAD decision: Slack + Email queued', detail: 'Score 92 · Slack fired to #sales' }) },
+        { delay: 4500, fn: () => onDemoStep('lead', { ...DEMO_LEAD, id: `demo_${Date.now()}` }) },
+        { delay: 5500, fn: () => { setElapsed(Math.round((Date.now() - start) / 100) / 10); setState('done'); setToast(true); setTimeout(() => { setToast(false); setTimeout(() => setState('idle'), 500); }, 3500); }},
+      ];
+
+      steps.forEach(({ delay, fn }) => setTimeout(fn, delay));
+    } catch (err) {
+      console.error('[n8n] Failed to fire event:', err);
+      setState('idle');
+      alert("⚠️ Automation error. Check console for details.");
+    }
   };
 
   const Icon = state === 'running' ? Loader : state === 'done' ? CheckCircle : Play;
@@ -75,7 +99,7 @@ export default function DemoButton({ onDemoStep }) {
           <CheckCircle size={14} color="#22c55e" />
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#22c55e', fontFamily: "'IBM Plex Mono', monospace" }}>PIPELINE COMPLETE</div>      
-            <div style={{ fontSize: 10, color: '#475569', fontFamily: "'IBM Plex Mono', monospace" }}>{elapsed}s end-to-end · n8n webhook fired</div> 
+            <div style={{ fontSize: 10, color: '#475569', fontFamily: "'IBM Plex Mono', monospace" }}>{elapsed}s end-to-end · 1 Credit Deducted</div> 
           </div>
         </div>
       )}
